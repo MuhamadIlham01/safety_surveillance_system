@@ -1,0 +1,5 @@
+ultralytics
+opencv-python
+paho-mqtt
+numpy
+flask

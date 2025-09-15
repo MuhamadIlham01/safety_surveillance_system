@@ -1,0 +1,398 @@
+import cv2
+import numpy as np
+import paho.mqtt.client as mqtt
+from flask import Flask, render_template, Response
+import threading
+from datetime import datetime
+import time
+from flask import jsonify
+import json
+from ultralytics import YOLO
+
+app = Flask(__name__)
+
+# MQTT Settings
+MQTT_BROKER = "broker.emqx.io"
+MQTT_PORT = 1883
+MQTT_TOPICS = [
+    "surveillance/temperature",
+    "surveillance/humidity",
+    "surveillance/gas",
+    "surveillance/distance",
+    "surveillance/motion",
+    "surveillance/alert"
+]
+
+# Stream Settings
+ESP32_CAM_URL = "http://10.254.232.22:81/stream"
+MAX_RETRIES = 5
+RETRY_DELAY = 2
+
+# Sensor Data
+sensor_data = {
+    "temperature": 0,
+    "humidity": 0,
+    "gas": 0,
+    "distance": 0,
+    "motion": False,
+    "alert": "SAFE",
+    "weapon_detected": False,
+    "last_update": ""
+}
+
+# Load YOLOv8 model
+model = YOLO("best.pt")  # or "best.pt" for custom model
+
+# MQTT Callbacks
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT Broker with result code "+str(rc))
+    for topic in MQTT_TOPICS:
+        client.subscribe(topic)
+
+def on_message(client, userdata, msg):
+    topic = msg.topic.split("/")[-1]
+    value = msg.payload.decode()
+    
+    if topic == "temperature":
+        sensor_data["temperature"] = float(value)
+    elif topic == "humidity":
+        sensor_data["humidity"] = float(value)
+    elif topic == "gas":
+        sensor_data["gas"] = int(value)
+    elif topic == "distance":
+        sensor_data["distance"] = float(value)
+    elif topic == "motion":
+        sensor_data["motion"] = bool(int(value))
+    elif topic == "alert":
+        sensor_data["alert"] = value
+    
+    sensor_data["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# Setup MQTT Client
+mqtt_client = mqtt.Client()
+mqtt_client.on_connect = on_connect
+mqtt_client.on_message = on_message
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+mqtt_thread = threading.Thread(target=mqtt_client.loop_forever)
+mqtt_thread.daemon = True
+mqtt_thread.start()
+
+# Enhanced Video Streaming with Object Detection
+def detect_objects():
+    retry_count = 0
+    cap = None
+    
+    while retry_count < MAX_RETRIES:
+        try:
+            # Open the video stream with increased buffer size
+            cap = cv2.VideoCapture(ESP32_CAM_URL)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)  # Reduce buffer to minimize latency
+            
+            if not cap.isOpened():
+                raise ConnectionError("Could not open video stream")
+            
+            print("Stream opened successfully.")
+            retry_count = 0  # Reset retry counter on successful connection
+            
+            while True:
+                try:
+                    # Read a frame from the stream
+                    ret, frame = cap.read()
+                    
+                    if not ret:
+                        print("Frame read error - attempting to reconnect...")
+                        break
+                    
+                    # Convert frame to RGB (YOLOv8 expects RGB)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # Perform detection with YOLOv8
+                    results = model(frame_rgb, verbose=False)
+                    
+                    # Parse results and check for weapons
+                    weapon_detected = False
+                    for result in results:
+                        boxes = result.boxes
+                        for box in boxes:
+                            if box.conf > 0.5:  # Confidence threshold
+                                cls = int(box.cls)
+                                label = model.names[cls]
+                                if label == 'handgun':  # Replace with your weapon class
+                                    weapon_detected = True
+                    
+                    # Update weapon detection status
+                    if weapon_detected != sensor_data["weapon_detected"]:
+                        sensor_data["weapon_detected"] = weapon_detected
+                        if weapon_detected:
+                            mqtt_client.publish("surveillance/alert", "WARNING")
+                            sensor_data["alert"] = "WARNING"
+                        else:
+                            mqtt_client.publish("surveillance/alert", "SAFE")
+                            sensor_data["alert"] = "SAFE"
+                        sensor_data["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # Visualize the results on the frame
+                    annotated_frame = results[0].plot()
+                    
+                    # Encode frame for streaming
+                    ret, buffer = cv2.imencode('.jpg', annotated_frame)
+                    frame_bytes = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                    
+                except Exception as e:
+                    print(f"Frame processing error: {e}")
+                    time.sleep(0.1)  # Brief pause before trying next frame
+                    continue
+                    
+        except ConnectionError as e:
+            print(f"Connection error: {e}")
+            retry_count += 1
+            if retry_count < MAX_RETRIES:
+                print(f"Attempting to reconnect ({retry_count}/{MAX_RETRIES})...")
+                time.sleep(RETRY_DELAY)
+            continue
+        except Exception as e:
+            print(f"Error: {e}")
+            break
+        finally:
+            if cap is not None:
+                cap.release()
+    
+    print("Video stream ended.")
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(detect_objects(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/sensor_data')
+def get_sensor_data():
+    """Endpoint to get current sensor data as JSON"""
+    return jsonify(sensor_data)
+
+@app.route('/sensor_stream')
+def sensor_stream():
+    """Server-Sent Events stream for real-time updates"""
+    def event_stream():
+        last_data = ""
+        while True:
+            # Only send if data changed
+            current_data = json.dumps(sensor_data)
+            if current_data != last_data:
+                yield f"data: {current_data}\n\n"
+                last_data = current_data
+            time.sleep(1)  # Update interval
+    
+    return Response(event_stream(), mimetype="text/event-stream")
+
+@app.route('/')
+def index():
+    return render_template('index.html', data=sensor_data)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+
+
+
+
+import cv2
+import numpy as np
+import paho.mqtt.client as mqtt
+from flask import Flask, render_template, Response
+import threading
+from datetime import datetime
+import time
+from flask import jsonify
+import json
+from ultralytics import YOLO
+
+app = Flask(__name__)
+
+# MQTT Settings
+MQTT_BROKER = "broker.emqx.io"
+MQTT_PORT = 1883
+MQTT_TOPICS = [
+    "surveillance/temperature",
+    "surveillance/humidity",
+    "surveillance/gas",
+    "surveillance/distance",
+    "surveillance/motion",
+    "surveillance/alert"
+]
+
+# Stream Settings
+ESP32_CAM_URL = "http://10.254.232.22:81/stream"
+MAX_RETRIES = 5
+RETRY_DELAY = 2
+
+# Sensor Data with thresholds
+sensor_data = {
+    "temperature": 0,
+    "humidity": 0,
+    "gas": 0,
+    "distance": 0,
+    "motion": False,
+    "alert": "SAFE",
+    "weapon_detected": False,
+    "last_update": "",
+    "thresholds": {
+        "temperature": 35,    # °C
+        "gas": 1500,         # ppm
+        "distance": 50,      # cm
+        "motion": True,       # boolean
+        "weapon": True        # boolean
+    }
+}
+
+# Load YOLOv8 model
+model = YOLO("best.pt")  # or "best.pt" for custom model
+
+# MQTT Callbacks
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT Broker with result code "+str(rc))
+    for topic in MQTT_TOPICS:
+        client.subscribe(topic)
+
+def on_message(client, userdata, msg):
+    topic = msg.topic.split("/")[-1]
+    value = msg.payload.decode()
+    
+    if topic == "temperature":
+        sensor_data["temperature"] = float(value)
+        # Check temperature threshold
+        if float(value) >= sensor_data["thresholds"]["temperature"]:
+            sensor_data["alert"] = "WARNING"
+    elif topic == "humidity":
+        sensor_data["humidity"] = float(value)
+    elif topic == "gas":
+        sensor_data["gas"] = int(value)
+        # Check gas threshold
+        if int(value) >= sensor_data["thresholds"]["gas"]:
+            sensor_data["alert"] = "WARNING"
+    elif topic == "distance":
+        sensor_data["distance"] = float(value)
+        # Check distance threshold
+        if float(value) <= sensor_data["thresholds"]["distance"]:
+            sensor_data["alert"] = "WARNING"
+    elif topic == "motion":
+        sensor_data["motion"] = bool(int(value))
+        # Check motion threshold
+        if bool(int(value)) and sensor_data["thresholds"]["motion"]:
+            sensor_data["alert"] = "WARNING"
+    elif topic == "alert":
+        sensor_data["alert"] = value
+    
+    sensor_data["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# Setup MQTT Client
+mqtt_client = mqtt.Client()
+mqtt_client.on_connect = on_connect
+mqtt_client.on_message = on_message
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+mqtt_thread = threading.Thread(target=mqtt_client.loop_forever)
+mqtt_thread.daemon = True
+mqtt_thread.start()
+
+# Enhanced Video Streaming with Object Detection
+def detect_objects():
+    retry_count = 0
+    cap = None
+    
+    while retry_count < MAX_RETRIES:
+        try:
+            cap = cv2.VideoCapture(ESP32_CAM_URL)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+            
+            if not cap.isOpened():
+                raise ConnectionError("Could not open video stream")
+            
+            print("Stream opened successfully.")
+            retry_count = 0
+            
+            while True:
+                try:
+                    ret, frame = cap.read()
+                    
+                    if not ret:
+                        print("Frame read error - attempting to reconnect...")
+                        break
+                    
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = model(frame_rgb, verbose=False)
+                    
+                    weapon_detected = False
+                    for result in results:
+                        boxes = result.boxes
+                        for box in boxes:
+                            if box.conf > 0.5:
+                                cls = int(box.cls)
+                                label = model.names[cls]
+                                if label in ['handgun', 'knife']:  # Add your weapon classes
+                                    weapon_detected = True
+                    
+                    if weapon_detected != sensor_data["weapon_detected"]:
+                        sensor_data["weapon_detected"] = weapon_detected
+                        if weapon_detected and sensor_data["thresholds"]["weapon"]:
+                            mqtt_client.publish("surveillance/alert", "WARNING")
+                            sensor_data["alert"] = "WARNING"
+                        else:
+                            mqtt_client.publish("surveillance/alert", "SAFE")
+                            sensor_data["alert"] = "SAFE"
+                        sensor_data["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    annotated_frame = results[0].plot()
+                    ret, buffer = cv2.imencode('.jpg', annotated_frame)
+                    frame_bytes = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                    
+                except Exception as e:
+                    print(f"Frame processing error: {e}")
+                    time.sleep(0.1)
+                    continue
+                    
+        except ConnectionError as e:
+            print(f"Connection error: {e}")
+            retry_count += 1
+            if retry_count < MAX_RETRIES:
+                print(f"Attempting to reconnect ({retry_count}/{MAX_RETRIES})...")
+                time.sleep(RETRY_DELAY)
+            continue
+        except Exception as e:
+            print(f"Error: {e}")
+            break
+        finally:
+            if cap is not None:
+                cap.release()
+    
+    print("Video stream ended.")
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(detect_objects(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/sensor_data')
+def get_sensor_data():
+    return jsonify(sensor_data)
+
+@app.route('/sensor_stream')
+def sensor_stream():
+    def event_stream():
+        last_data = ""
+        while True:
+            current_data = json.dumps(sensor_data)
+            if current_data != last_data:
+                yield f"data: {current_data}\n\n"
+                last_data = current_data
+            time.sleep(1)  # Update every second
+    
+    return Response(event_stream(), mimetype="text/event-stream")
+
+@app.route('/')
+def index():
+    return render_template('index.html', data=sensor_data)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

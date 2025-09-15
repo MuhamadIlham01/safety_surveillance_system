@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-time Surveillance Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      /* Base styles for the body, ensuring content is centered and has padding */
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f0f2f5; /* Light gray background for a modern look */
+        display: flex;
+        justify-content: center; /* Center content horizontally */
+        align-items: flex-start; /* Align content to the top */
+        min-height: 100vh; /* Full viewport height */
+        padding: 2rem 1rem; /* Padding on all sides for responsiveness */
+      }
+
+      /* Container for the entire dashboard layout */
+      .container {
+        display: flex;
+        flex-direction: column; /* Stack elements vertically by default */
+        gap: 1.5rem; /* Spacing between sections */
+        width: 100%;
+        max-width: 1200px; /* Max width for larger screens */
+      }
+
+      /* Header section styling */
+      .header {
+        background: linear-gradient(
+          135deg,
+          #2c3e50,
+          #34495e
+        ); /* Dark gradient background */
+        color: #ecf0f1; /* Light text color */
+        padding: 2rem;
+        border-radius: 12px; /* Rounded corners */
+        text-align: center;
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15); /* Soft shadow for depth */
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .header h1 i {
+        margin-right: 1rem;
+        color: #3498db; /* Blue icon for visual emphasis */
+      }
+
+      .header p {
+        font-size: 1.1rem;
+        opacity: 0.9; /* Slightly transparent for subtle effect */
+      }
+
+      /* Dashboard main content area */
+      .dashboard {
+        display: flex;
+        flex-direction: column; /* Stack on small screens */
+        gap: 1.5rem;
+      }
+
+      /* Media query for larger screens (e.g., desktops) to arrange sections side-by-side */
+      @media (min-width: 1024px) {
+        .dashboard {
+          flex-direction: row; /* Arrange horizontally */
+          align-items: flex-start; /* Align items to the top */
+        }
+      }
+
+      /* Video section styling */
+      .video-section {
+        flex: 2; /* Takes up more space in a row layout */
+        min-width: 0; /* Allows content to shrink if needed */
+      }
+
+      /* Sidebar section styling */
+      .sidebar {
+        flex: 1; /* Takes less space in a row layout */
+        min-width: 300px; /* Minimum width to ensure readability */
+      }
+
+      /* General card styling */
+      .card {
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        padding: 1.5rem;
+        transition: transform 0.2s ease-in-out; /* Smooth transition on hover */
+        display: flex;
+        flex-direction: column;
+        height: 100%; /* Ensures cards fill available height */
+      }
+
+      .card:hover {
+        transform: translateY(-3px); /* Subtle lift effect on hover */
+      }
+
+      /* Card header styling */
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #eee; /* Separator line */
+      }
+
+      .card-header .header-left {
+        display: flex;
+        align-items: center;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .card-header .header-left i {
+        margin-right: 0.75rem;
+        color: #3498db;
+      }
+
+      /* Camera and refresh status indicators */
+      .camera-status,
+      .refresh-status {
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #555;
+      }
+
+      .status-dot {
+        font-size: 0.7rem;
+        margin-right: 0.5rem;
+      }
+
+      .camera-status .status-dot {
+        color: #2ecc71; /* Green for streaming status */
+      }
+
+      /* Video container to maintain aspect ratio */
+      .video-container {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%; /* 16:9 Aspect Ratio (9 / 16 * 100) */
+        height: 0;
+        overflow: hidden;
+        background-color: #000; /* Black background for video area */
+        border-radius: 8px;
+      }
+
+      .video-container img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* Ensures the whole image is visible within the container */
+        border-radius: 8px;
+      }
+
+      /* Video overlay for offline status */
+      .video-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(
+          0,
+          0,
+          0,
+          0.7
+        ); /* Semi-transparent dark overlay */
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+        border-radius: 8px;
+        z-index: 10;
+        opacity: 0; /* Hidden by default */
+        transition: opacity 0.3s ease-in-out; /* Smooth fade in/out */
+      }
+
+      .video-overlay.active {
+        opacity: 1; /* Show when active (camera offline) */
+      }
+
+      .video-overlay i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #e74c3c; /* Red warning icon */
+      }
+
+      /* Sensor grid layout */
+      .sensor-grid {
+        display: grid;
+        grid-template-columns: repeat(
+          auto-fit,
+          minmax(140px, 1fr)
+        ); /* Responsive grid columns */
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      /* Individual sensor item styling */
+      .sensor-item {
+        display: flex;
+        align-items: center;
+        background-color: #f8f9fa; /* Light background for sensor items */
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); /* Inner shadow for subtle depth */
+      }
+
+      .sensor-icon {
+        font-size: 1.8rem;
+        margin-right: 1rem;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 50%; /* Circular icon background */
+        color: #fff; /* White icon color */
+      }
+
+      /* Specific icon background colors */
+      .temp-icon {
+        background-color: #e74c3c;
+      } /* Red */
+      .humidity-icon {
+        background-color: #3498db;
+      } /* Blue */
+      .gas-icon {
+        background-color: #f1c40f;
+      } /* Yellow */
+      .distance-icon {
+        background-color: #9b59b6;
+      } /* Purple */
+      .motion-icon {
+        background-color: #1abc9c;
+      } /* Turquoise */
+      .weapon-icon {
+        background-color: #e67e22;
+      } /* Orange */
+
+      .sensor-info {
+        flex-grow: 1;
+      }
+
+      .sensor-label {
+        font-size: 0.9rem;
+        color: #7f8c8d; /* Gray text for labels */
+        margin-bottom: 0.25rem;
+      }
+
+      .sensor-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2c3e50; /* Dark text for values */
+      }
+
+      .sensor-unit {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #7f8c8d;
+        margin-left: 0.25rem;
+      }
+
+      /* Timestamp styling */
+      .timestamp {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        text-align: right;
+        border-top: 1px solid #eee;
+        padding-top: 1rem;
+      }
+
+      .timestamp i {
+        margin-right: 0.5rem;
+        color: #7f8c8d;
+      }
+
+      /* Status bar at the bottom */
+      .status-bar {
+        width: 100%;
+        max-width: 1200px;
+        margin-top: 1.5rem;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      .status-indicator {
+        padding: 1.5rem;
+        text-align: center;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #fff;
+        transition: background-color 0.3s ease-in-out; /* Smooth color change */
+      }
+
+      .status-indicator.safe {
+        background-color: #27ae60; /* Emerald Green for SAFE status */
+      }
+
+      .status-indicator.warning {
+        background-color: #c0392b; /* Pomegranate Red for WARNING status */
+      }
+
+      .status-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .status-content i {
+        margin-right: 1rem;
+        font-size: 2.2rem;
+      }
+
+      /* Responsive adjustments for smaller screens */
+      @media (max-width: 768px) {
+        .header h1 {
+          font-size: 2rem;
+        }
+        .header p {
+          font-size: 1rem;
+        }
+        .sensor-grid {
+          grid-template-columns: 1fr; /* Stack sensor items vertically */
+        }
+        .status-indicator {
+          font-size: 1.4rem;
+        }
+        .status-content i {
+          font-size: 1.8rem;
+        }
+      }
+      .alert-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .alert-modal.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .alert-content {
+        background-color: white;
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        transform: translateY(20px);
+        transition: transform 0.3s ease;
+      }
+
+      .alert-modal.active .alert-content {
+        transform: translateY(0);
+      }
+
+      .alert-icon {
+        font-size: 4rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .alert-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+      }
+
+      .alert-message {
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+        color: #555;
+      }
+
+      .alert-button {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        padding: 0.8rem 2rem;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .alert-button:hover {
+        background-color: #c0392b;
+      }
+
+      /* Critical sensor values */
+      .critical {
+        animation: pulse 1.5s infinite;
+        color: #e74c3c !important;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      /* Warning sensor values */
+      .warning {
+        color: #f39c12 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div class="header-content">
+          <h1><i class="fas fa-shield-alt"></i> Surveillance System</h1>
+          <p>Real-time monitoring and threat detection</p>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="video-section">
+          <div class="card video-card">
+            <div class="card-header">
+              <div class="header-left">
+                <i class="fas fa-video"></i>
+                <span>Live Camera Feed</span>
+              </div>
+              <div class="camera-status" id="camera-status">
+                <i class="fas fa-circle status-dot"></i>
+                <span>Streaming</span>
+              </div>
+            </div>
+            <div class="video-container">
+              <img
+                src="{{ url_for('video_feed') }}"
+                alt="Live Camera Feed"
+                id="camera-feed"
+              />
+              <div class="video-overlay" id="video-overlay">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Camera Offline</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="card sensors-card">
+            <div class="card-header">
+              <div class="header-left">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Sensor Data</span>
+              </div>
+              <div class="refresh-status" id="refresh-status">
+                <i class="fas fa-sync-alt"></i>
+                <span class="refresh-text">Auto-refresh</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="sensor-grid">
+                <div class="sensor-item">
+                  <div class="sensor-icon temp-icon">
+                    <i class="fas fa-temperature-high"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Temperature</div>
+                    <div class="sensor-value">
+                      <span id="temperature">{{ data.temperature }}</span>
+                      <span class="sensor-unit">°C</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon humidity-icon">
+                    <i class="fas fa-tint"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Humidity</div>
+                    <div class="sensor-value">
+                      <span id="humidity">{{ data.humidity }}</span>
+                      <span class="sensor-unit">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon gas-icon">
+                    <i class="fas fa-smog"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Gas Level</div>
+                    <div class="sensor-value">
+                      <span id="gas">{{ data.gas }}</span>
+                      <span class="sensor-unit">ppm</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon distance-icon">
+                    <i class="fas fa-ruler-vertical"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Distance</div>
+                    <div class="sensor-value">
+                      <span id="distance">{{ data.distance }}</span>
+                      <span class="sensor-unit">cm</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon motion-icon">
+                    <i class="fas fa-running"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Motion</div>
+                    <div class="sensor-value">
+                      <span id="motion"
+                        >{{ "Detected" if data.motion else "None" }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon weapon-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Weapon</div>
+                    <div class="sensor-value">
+                      <span id="weapon"
+                        >{{ "Detected" if data.weapon_detected else "Safe"
+                        }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="timestamp" id="last-update-container">
+                <i class="far fa-clock"></i>
+                <span
+                  >Last update:
+                  <span id="last-update">{{ data.last_update }}</span></span
+                >
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <div class="status-bar">
+        <div
+          class="status-indicator {{ 'warning' if data.alert == 'WARNING' else 'safe' }}"
+          id="status"
+        >
+          <div class="status-content">
+            <i
+              class="fas {{ 'fa-exclamation-triangle' if data.alert == 'WARNING' else 'fa-check-circle' }}"
+            ></i>
+            <span class="status-text">{{ data.alert }} STATUS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <audio id="fire-sound" src="C:\Users\ILHAM\Documents\Arduino\esp32_smart_system\flask_server\templates\static\fire_alert.mp3" preload="auto"></audio>
+    <audio id="gas-sound" src="C:\Users\ILHAM\Documents\Arduino\esp32_smart_system\flask_server\templates\static\gas_alert.mp3" preload="auto"></audio>
+    <audio id="handgun-sound" src="C:\Users\ILHAM\Documents\Arduino\esp32_smart_system\flask_server\templates\static\handgun_alert.mp3" preload="auto"></audio>
+    <audio id="knife-sound" src="C:\Users\ILHAM\Documents\Arduino\esp32_smart_system\flask_server\templates\static\knife_alert.mp3" preload="auto"></audio>
+    <audio id="motion-sound" src="C:\Users\ILHAM\Documents\Arduino\esp32_smart_system\flask_server\templates\static\motion_alert.mp3" preload="auto"></audio>
+    <audio id="someone-sound" src="C:\Users\ILHAM\Documents\Arduino\esp32_smart_system\flask_server\templates\static\someone_alert.mp3" preload="auto"></audio>
+
+ <script>
+  // Configuration Constants
+  const THRESHOLDS = {
+    temperature: 35,   // °C
+    gas: 1500,         // ppm
+    distance: 50,      // cm
+    motion: true,      // boolean
+    weapon: true       // boolean
+  };
+  const ALERT_DELAY = 2000; // 2 seconds
+
+  // Global State
+  const state = {
+    activeAlerts: {},
+    isAlertModalOpen: false,
+    elements: {
+      // Alert Modal
+      alertModal: document.getElementById("alert-modal"),
+      alertTitle: document.getElementById("alert-title"),
+      alertMessage: document.getElementById("alert-message"),
+      alertIcon: document.getElementById("alert-icon"),
+      alertButton: document.getElementById("alert-button"),
+      
+      // Audio
+      alertSound: document.getElementById("alert-sound"),
+      warningSound: document.getElementById("warning-sound"),
+      
+      // Sensor Displays
+      temperature: document.getElementById("temperature"),
+      humidity: document.getElementById("humidity"),
+      gas: document.getElementById("gas"),
+      distance: document.getElementById("distance"),
+      motion: document.getElementById("motion"),
+      weapon: document.getElementById("weapon"),
+      lastUpdate: document.getElementById("last-update"),
+      
+      // Status
+      statusIndicator: document.getElementById("status"),
+      statusIcon: document.querySelector("#status i"),
+      statusText: document.querySelector(".status-text"),
+      
+      // Camera
+      cameraFeed: document.getElementById("camera-feed")
+    }
+  };
+
+  // Initialize the application
+  function init() {
+    setupEventListeners();
+    setupRealTimeUpdates();
+    checkCameraStatus();
+  }
+
+  // Set up event listeners
+  function setupEventListeners() {
+    state.elements.alertButton.addEventListener("click", () => {
+      state.elements.alertModal.classList.remove("active");
+      state.isAlertModalOpen = false;
+    });
+  }
+
+  // Check camera connection status
+  function checkCameraStatus() {
+    setTimeout(() => {
+      const isOnline = state.elements.cameraFeed.complete && 
+                      state.elements.cameraFeed.naturalWidth !== 0;
+      updateCameraStatus(isOnline);
+    }, 1000);
+  }
+
+  // Set up real-time data updates
+  function setupRealTimeUpdates() {
+    const eventSource = new EventSource("/sensor_stream");
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      updateDashboard(data);
+      checkThresholds(data);
+    };
+
+    eventSource.onerror = () => {
+      console.error("SSE connection error - falling back to polling");
+      eventSource.close();
+      setupPollingFallback();
+    };
+  }
+
+  // Update all dashboard elements
+  function updateDashboard(data) {
+    // Animate numerical values
+    animateValue("temperature", data.temperature.toFixed(2));
+    animateValue("humidity", data.humidity.toFixed(2));
+    animateValue("gas", data.gas);
+    animateValue("distance", data.distance.toFixed(2));
+    
+    // Update boolean states
+    state.elements.motion.textContent = data.motion ? "Detected" : "None";
+    state.elements.weapon.textContent = data.weapon_detected ? "Detected" : "Safe";
+    state.elements.lastUpdate.textContent = data.last_update;
+
+    // Update status indicator
+    updateStatusIndicator(data.alert);
+  }
+
+  // Update status indicator styling
+  function updateStatusIndicator(alertStatus) {
+    const { statusIndicator, statusIcon, statusText } = state.elements;
+    
+    statusIndicator.className = `status-indicator ${alertStatus.toLowerCase()}`;
+    statusIcon.className = `fas ${alertStatus === "WARNING" ? "fa-exclamation-triangle" : "fa-check-circle"}`;
+    statusText.textContent = `${alertStatus} STATUS`;
+  }
+
+  // Check for threshold violations
+  function checkThresholds(data) {
+    const newAlerts = {};
+    const weaponCard = document.querySelector('.weapon-icon').closest('.sensor-item');
+
+    // Update weapon card styling
+    updateWeaponCardStyle(weaponCard, data.weapon_detected);
+
+    // Check all thresholds
+    if (data.temperature >= THRESHOLDS.temperature) {
+      newAlerts.temperature = createAlertConfig(
+        "HIGH TEMPERATURE", 
+        `Temperature is ${data.temperature}°C`, 
+        "warning",
+        "temperature"
+      );
+    }
+
+    if (data.gas >= THRESHOLDS.gas) {
+      newAlerts.gas = createAlertConfig(
+        "GAS LEAK DETECTED", 
+        `Gas level is ${data.gas}ppm`, 
+        "alert",
+        "gas"
+      );
+    }
+
+    if (data.distance <= THRESHOLDS.distance) {
+      newAlerts.distance = createAlertConfig(
+        "OBJECT TOO CLOSE", 
+        `Object at ${data.distance}cm`, 
+        "warning",
+        "distance"
+      );
+    }
+
+    if (data.motion && THRESHOLDS.motion) {
+      newAlerts.motion = createAlertConfig(
+        "MOTION DETECTED", 
+        "Movement in monitored area", 
+        "warning",
+        "motion"
+      );
+    }
+
+    if (data.weapon_detected && THRESHOLDS.weapon) {
+      newAlerts.weapon = createAlertConfig(
+        "WEAPON DETECTED!", 
+        "Potential weapon in view", 
+        "alert",
+        "weapon"
+      );
+    }
+
+    // Schedule new alerts
+    scheduleAlerts(newAlerts);
+    
+    // Clear resolved alerts
+    cleanupAlerts(newAlerts);
+  }
+
+  // Helper function to create alert configuration
+  function createAlertConfig(title, message, type, elementId) {
+    return {
+      title,
+      message,
+      type,
+      element: state.elements[elementId]
+    };
+  }
+
+  // Schedule alerts with delay
+  function scheduleAlerts(newAlerts) {
+    for (const [key, alert] of Object.entries(newAlerts)) {
+      if (!state.activeAlerts[key]) {
+        setTimeout(() => {
+          if (!state.activeAlerts[key]) { // Check if not already acknowledged
+            triggerAlert(alert);
+            state.activeAlerts[key] = true;
+          }
+        }, ALERT_DELAY);
+      }
+    }
+  }
+
+  // Clean up resolved alerts
+  function cleanupAlerts(newAlerts) {
+    Object.keys(state.activeAlerts).forEach(key => {
+      if (!newAlerts[key]) {
+        delete state.activeAlerts[key];
+      }
+    });
+  }
+
+  // Update weapon card styling
+  function updateWeaponCardStyle(card, isDetected) {
+    if (isDetected) {
+      card.style.backgroundColor = '#fee2e2';
+      card.style.boxShadow = '0 0 0 2px #ef4444';
+    } else {
+      card.style.backgroundColor = '';
+      card.style.boxShadow = '';
+    }
+  }
+
+  // Trigger alert modal and sound
+  function triggerAlert(alert) {
+    const { alertTitle, alertMessage, alertIcon, alertSound, warningSound } = state.elements;
+    
+    alertTitle.textContent = alert.title;
+    alertMessage.textContent = alert.message;
+
+    // Set icon and play sound based on alert type
+    if (alert.type === "alert") {
+      alertIcon.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+      alertIcon.style.color = "#e74c3c";
+      alertSound.currentTime = 0;
+      alertSound.play().catch(e => console.log("Audio blocked:", e));
+    } else {
+      alertIcon.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+      alertIcon.style.color = "#f39c12";
+      warningSound.currentTime = 0;
+      warningSound.play().catch(e => console.log("Audio blocked:", e));
+    }
+
+    // Show modal if not already open
+    if (!state.isAlertModalOpen) {
+      state.elements.alertModal.classList.add("active");
+      state.isAlertModalOpen = true;
+    }
+  }
+
+  // Smooth value animation
+  function animateValue(id, newValue, duration = 300) {
+    const element = document.getElementById(id);
+    const start = parseFloat(element.textContent) || 0;
+    const end = parseFloat(newValue);
+    const range = end - start;
+    const startTime = performance.now();
+    
+    function updateValue(timestamp) {
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const value = start + (range * progress);
+      element.textContent = Number.isInteger(end) ? Math.floor(value) : value.toFixed(2);
+      
+      if (progress < 1) {
+        requestAnimationFrame(updateValue);
+      }
+    }
+    
+    requestAnimationFrame(updateValue);
+  }
+
+  // Fallback polling mechanism
+  function setupPollingFallback() {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/sensor_data");
+        const data = await response.json();
+        updateDashboard(data);
+        checkThresholds(data);
+      } catch (error) {
+        console.error("Polling error:", error);
+      }
+    };
+    
+    fetchData();
+    setInterval(fetchData, 5000);
+  }
+
+  // Initialize the application when window loads
+  window.onload = init;
+</script>
+  </body>
+</html>

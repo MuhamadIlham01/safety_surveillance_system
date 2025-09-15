@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-time Surveillance Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --color-primary: #3498db;
+        --color-danger: #e74c3c;
+        --color-warning: #f39c12;
+        --color-success: #27ae60;
+        --color-dark: #2c3e50;
+        --color-light: #ecf0f1;
+        --color-gray: #7f8c8d;
+        --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
+        --shadow-md: 0 6px 15px rgba(0, 0, 0, 0.15);
+        --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.2);
+        --border-radius-sm: 8px;
+        --border-radius-md: 12px;
+        --transition: all 0.3s ease;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f0f2f5;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        width: 100%;
+        max-width: 1200px;
+      }
+
+      .dashboard {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .video-section {
+        flex: 2;
+        min-width: 0;
+      }
+
+      .sidebar {
+        flex: 1;
+        min-width: 300px;
+      }
+
+      /* Header */
+      .header {
+        background: linear-gradient(135deg, var(--color-dark), #34495e);
+        color: var(--color-light);
+        padding: 2rem;
+        border-radius: var(--border-radius-md);
+        text-align: center;
+        box-shadow: var(--shadow-md);
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .header h1 i {
+        margin-right: 1rem;
+        color: var(--color-primary);
+      }
+
+      .header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+      }
+
+      /* Cards */
+      .card {
+        background-color: #ffffff;
+        border-radius: var(--border-radius-md);
+        box-shadow: var(--shadow-sm);
+        padding: 1.5rem;
+        transition: transform 0.2s ease-in-out;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      .card:hover {
+        transform: translateY(-3px);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #eee;
+      }
+
+      .card-header .header-left {
+        display: flex;
+        align-items: center;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .card-header .header-left i {
+        margin-right: 0.75rem;
+        color: var(--color-primary);
+      }
+
+      /* Status indicators */
+      .camera-status,
+      .refresh-status {
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #555;
+      }
+
+      .status-dot {
+        font-size: 0.7rem;
+        margin-right: 0.5rem;
+      }
+
+      .camera-status .status-dot {
+        color: var(--color-success);
+      }
+
+      /* Video container */
+      .video-container {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+        height: 0;
+        overflow: hidden;
+        background-color: #000;
+        border-radius: var(--border-radius-sm);
+      }
+
+      .video-container img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: var(--border-radius-sm);
+      }
+
+      .video-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+        border-radius: var(--border-radius-sm);
+        z-index: 10;
+        opacity: 0;
+        transition: var(--transition);
+      }
+
+      .video-overlay.active {
+        opacity: 1;
+      }
+
+      .video-overlay i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: var(--color-danger);
+      }
+
+      /* Sensor grid */
+      .sensor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .sensor-item {
+        display: flex;
+        align-items: center;
+        background-color: #f8f9fa;
+        border-radius: var(--border-radius-sm);
+        padding: 1rem;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
+      .sensor-icon {
+        font-size: 1.8rem;
+        margin-right: 1rem;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 50%;
+        color: #fff;
+      }
+
+      /* Sensor icon colors */
+      .temp-icon {
+        background-color: var(--color-danger);
+      }
+      .humidity-icon {
+        background-color: var(--color-primary);
+      }
+      .gas-icon {
+        background-color: #f1c40f;
+      }
+      .distance-icon {
+        background-color: #9b59b6;
+      }
+      .motion-icon {
+        background-color: #1abc9c;
+      }
+      .weapon-icon {
+        background-color: #e67e22;
+      }
+
+      .sensor-info {
+        flex-grow: 1;
+      }
+
+      .sensor-label {
+        font-size: 0.9rem;
+        color: var(--color-gray);
+        margin-bottom: 0.25rem;
+      }
+
+      .sensor-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--color-dark);
+      }
+
+      .sensor-unit {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--color-gray);
+        margin-left: 0.25rem;
+      }
+
+      /* Timestamp */
+      .timestamp {
+        font-size: 0.9rem;
+        color: var(--color-gray);
+        text-align: right;
+        border-top: 1px solid #eee;
+        padding-top: 1rem;
+      }
+
+      .timestamp i {
+        margin-right: 0.5rem;
+        color: var(--color-gray);
+      }
+
+      /* Status bar */
+      .status-bar {
+        width: 100%;
+        max-width: 1200px;
+        margin-top: 1.5rem;
+        border-radius: var(--border-radius-md);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .status-indicator {
+        padding: 1.5rem;
+        text-align: center;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #fff;
+        transition: var(--transition);
+      }
+
+      .status-indicator.safe {
+        background-color: var(--color-success);
+      }
+
+      .status-indicator.warning {
+        background-color: var(--color-danger);
+      }
+
+      .status-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .status-content i {
+        margin-right: 1rem;
+        font-size: 2.2rem;
+      }
+
+      /* Alert modal */
+      .alert-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: var(--transition);
+      }
+
+      .alert-modal.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .alert-content {
+        background-color: white;
+        border-radius: var(--border-radius-md);
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        box-shadow: var(--shadow-lg);
+        transform: translateY(20px);
+        transition: var(--transition);
+      }
+
+      .alert-modal.active .alert-content {
+        transform: translateY(0);
+      }
+
+      .alert-icon {
+        font-size: 4rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .alert-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+      }
+
+      .alert-message {
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+        color: #555;
+      }
+
+      .alert-button {
+        background-color: var(--color-danger);
+        color: white;
+        border: none;
+        padding: 0.8rem 2rem;
+        border-radius: var(--border-radius-sm);
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .alert-button:hover {
+        background-color: #c0392b;
+      }
+
+      /* Video Actions */
+      .video-actions {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 1rem;
+        padding: 0 0.5rem;
+      }
+
+      .btn-capture {
+        background-color: var(--color-primary);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.25rem;
+        border-radius: var(--border-radius-sm);
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        box-shadow: var(--shadow-sm);
+        margin-left: 0;
+      }
+
+      .btn-capture:hover {
+        background-color: #2980b9;
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .btn-capture:active {
+        transform: translateY(0);
+      }
+
+      .btn-capture i {
+        font-size: 1.1rem;
+      }
+
+      .btn-capture .btn-text {
+        white-space: nowrap;
+      }
+
+      /* Loading state */
+      .btn-capture.loading {
+        pointer-events: none;
+        opacity: 0.8;
+      }
+
+      .btn-capture.loading i {
+        animation: spin 1s linear infinite;
+      }
+
+      /* Toast Notification */
+      .toast-notification {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #333;
+        color: white;
+        padding: 12px 24px;
+        border-radius: var(--border-radius-sm);
+        box-shadow: var(--shadow-lg);
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .toast-notification.show {
+        opacity: 1;
+      }
+
+      .toast-notification.success {
+        background-color: var(--color-success);
+      }
+
+      .toast-notification.error {
+        background-color: var(--color-danger);
+      }
+
+      /* Utility classes */
+      .critical {
+        animation: pulse 1.5s infinite;
+        color: var(--color-danger) !important;
+      }
+
+      .warning {
+        color: var(--color-warning) !important;
+      }
+
+      /* Animations */
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* ================ RESPONSIVE STYLES ================ */
+      @media (min-width: 1024px) {
+        .dashboard {
+          flex-direction: row;
+          align-items: flex-start;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .header h1 {
+          font-size: 2rem;
+        }
+        .header p {
+          font-size: 1rem;
+        }
+        .sensor-grid {
+          grid-template-columns: 1fr;
+        }
+        .status-indicator {
+          font-size: 1.4rem;
+        }
+        .status-content i {
+          font-size: 1.8rem;
+        }
+        .video-actions {
+          justify-content: flex-start;
+          padding-left: 0;
+        }
+        .btn-capture {
+          padding: 0.65rem 1.1rem;
+          font-size: 0.9rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div class="header-content">
+          <h1><i class="fas fa-shield-alt"></i> Surveillance System</h1>
+          <p>Real-time monitoring and threat detection</p>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="video-section">
+          <div class="card video-card">
+            <div class="card-header">
+              <div class="header-left">
+                <i class="fas fa-video"></i>
+                <span>Live Camera Feed</span>
+              </div>
+              <div class="camera-status" id="camera-status">
+                <i class="fas fa-circle status-dot"></i>
+                <span>Streaming</span>
+              </div>
+            </div>
+            <div class="video-container">
+              <img
+                src="{{ url_for('video_feed') }}"
+                alt="Live Camera Feed"
+                id="camera-feed"
+              />
+              <div class="video-overlay" id="video-overlay">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Camera Offline</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="card sensors-card">
+            <div class="card-header">
+              <div class="header-left">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Sensor Data</span>
+              </div>
+              <div class="refresh-status" id="refresh-status">
+                <i class="fas fa-sync-alt"></i>
+                <span class="refresh-text">Auto-refresh</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="sensor-grid">
+                <div class="sensor-item">
+                  <div class="sensor-icon temp-icon">
+                    <i class="fas fa-temperature-high"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Temperature</div>
+                    <div class="sensor-value">
+                      <span id="temperature">{{ data.temperature }}</span>
+                      <span class="sensor-unit">°C</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon humidity-icon">
+                    <i class="fas fa-tint"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Humidity</div>
+                    <div class="sensor-value">
+                      <span id="humidity">{{ data.humidity }}</span>
+                      <span class="sensor-unit">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon gas-icon">
+                    <i class="fas fa-smog"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Gas Level</div>
+                    <div class="sensor-value">
+                      <span id="gas">{{ data.gas }}</span>
+                      <span class="sensor-unit">ppm</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon distance-icon">
+                    <i class="fas fa-ruler-vertical"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Distance</div>
+                    <div class="sensor-value">
+                      <span id="distance">{{ data.distance }}</span>
+                      <span class="sensor-unit">cm</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item">
+                  <div class="sensor-icon motion-icon">
+                    <i class="fas fa-running"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Motion</div>
+                    <div class="sensor-value">
+                      <span id="motion"
+                        >{{ "Detected" if data.motion else "None" }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sensor-item weapon-sensor">
+                  <div class="sensor-icon weapon-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </div>
+                  <div class="sensor-info">
+                    <div class="sensor-label">Weapon</div>
+                    <div class="sensor-value">
+                      <span id="weapon"
+                        >{{ "Detected" if data.weapon_detected else "Safe"
+                        }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="timestamp" id="last-update-container">
+                <i class="far fa-clock"></i>
+                <span
+                  >Last update:
+                  <span id="last-update">{{ data.last_update }}</span></span
+                >
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <div class="status-bar">
+        <div
+          class="status-indicator {{ 'warning' if data.alert == 'WARNING' else 'safe' }}"
+          id="status"
+        >
+          <div class="status-content">
+            <i
+              class="fas {{ 'fa-exclamation-triangle' if data.alert == 'WARNING' else 'fa-check-circle' }}"
+            ></i>
+            <span class="status-text">{{ data.alert }} STATUS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Modal -->
+    <div class="alert-modal" id="alert-modal">
+      <div class="alert-content">
+        <div class="alert-icon" id="alert-icon">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h2 class="alert-title" id="alert-title">ALERT!</h2>
+        <p class="alert-message" id="alert-message"></p>
+        <button class="alert-button" id="alert-button">ACKNOWLEDGE</button>
+      </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="fire-sound" src="/static/fire_alert.mp3" preload="auto"></audio>
+    <audio
+      id="gas-sound"
+      src="/static/gasleak_alert.mp3"
+      preload="auto"
+    ></audio>
+    <audio
+      id="handgun-sound"
+      src="/static/handgun_alert.mp3"
+      preload="auto"
+    ></audio>
+    <audio
+      id="knife-sound"
+      src="/static/knife_alert.mp3"
+      preload="auto"
+    ></audio>
+    <audio
+      id="motion-sound"
+      src="/static/motion_alert.mp3"
+      preload="auto"
+    ></audio>
+    <audio
+      id="someone-sound"
+      src="/static/someone_alert.mp3"
+      preload="auto"
+    ></audio>
+
+    <script>
+      // Configuration
+      const CONFIG = {
+        thresholds: {
+          temperature: 35,
+          gas: 1500,
+          distance: 50,
+          motion: true,
+          weapon: true,
+        },
+        alertDelay: 2000, // 2 seconds
+      };
+
+      // State Management
+      const state = {
+        activeAlerts: {},
+        isAlertModalOpen: false,
+        elements: {
+          // Modal Elements
+          alertModal: document.getElementById("alert-modal"),
+          alertTitle: document.getElementById("alert-title"),
+          alertMessage: document.getElementById("alert-message"),
+          alertIcon: document.getElementById("alert-icon"),
+          alertButton: document.getElementById("alert-button"),
+
+          // Sensor Elements
+          temperature: document.getElementById("temperature"),
+          humidity: document.getElementById("humidity"),
+          gas: document.getElementById("gas"),
+          distance: document.getElementById("distance"),
+          motion: document.getElementById("motion"),
+          weapon: document.getElementById("weapon"),
+          lastUpdate: document.getElementById("last-update"),
+
+          // Status Elements
+          status: document.getElementById("status"),
+          statusIcon: document.querySelector("#status i"),
+          statusText: document.querySelector(".status-text"),
+
+          // Camera Elements
+          cameraFeed: document.getElementById("camera-feed"),
+          cameraStatus: document.getElementById("camera-status"),
+          videoOverlay: document.getElementById("video-overlay"),
+
+          // Audio Elements
+          audio: {
+            fire: document.getElementById("fire-sound"),
+            gas: document.getElementById("gas-sound"),
+            handgun: document.getElementById("handgun-sound"),
+            knife: document.getElementById("knife-sound"),
+            motion: document.getElementById("motion-sound"),
+            someone: document.getElementById("someone-sound"),
+          },
+        },
+      };
+
+      // Update your existing capture button code with this:
+      function setupCaptureButton() {
+        const captureBtn = document.getElementById("capture-btn");
+
+        captureBtn.addEventListener("click", async () => {
+          try {
+            // Set loading state
+            captureBtn.disabled = true;
+            captureBtn.innerHTML =
+              '<i class="fas fa-spinner fa-spin"></i> Capturing...';
+
+            // Create a canvas element to capture the frame
+            const video = document.getElementById("camera-feed");
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth || video.offsetWidth;
+            canvas.height = video.videoHeight || video.offsetHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert canvas to blob and send to server
+            canvas.toBlob(
+              async (blob) => {
+                try {
+                  const formData = new FormData();
+                  formData.append("image", blob, "capture.jpg");
+
+                  const response = await fetch("/capture", {
+                    method: "POST",
+                    body: formData,
+                  });
+
+                  if (response.ok) {
+                    const result = await response.json();
+                    showToast("Image captured successfully!");
+
+                    // Optional: Download the image automatically
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `capture_${new Date()
+                      .toISOString()
+                      .slice(0, 19)}.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } else {
+                    throw new Error("Server error");
+                  }
+                } catch (error) {
+                  console.error("Upload error:", error);
+                  showToast("Failed to save image", "error");
+                }
+              },
+              "image/jpeg",
+              0.95
+            );
+          } catch (error) {
+            console.error("Capture error:", error);
+            showToast("Failed to capture image", "error");
+          } finally {
+            // Reset button state
+            captureBtn.disabled = false;
+            captureBtn.innerHTML =
+              '<i class="fas fa-camera"></i> Capture Image';
+          }
+        });
+      }
+
+      // Toast notification
+      function showToast(message, type = "success") {
+        const toast = document.createElement("div");
+        toast.className = `toast-notification ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+          toast.classList.add("show");
+        }, 10);
+
+        setTimeout(() => {
+          toast.classList.remove("show");
+          setTimeout(() => {
+            document.body.removeChild(toast);
+          }, 300);
+        }, 3000);
+      }
+
+      // Initialize the application
+      function init() {
+        setupEventListeners();
+        setupRealTimeUpdates();
+        checkCameraStatus();
+        setupCapturebutton();
+      }
+
+      // Set up event listeners
+      function setupEventListeners() {
+        state.elements.alertButton.addEventListener("click", closeAlertModal);
+        state.elements.cameraFeed.addEventListener("error", () =>
+          updateCameraStatus(false)
+        );
+        state.elements.cameraFeed.addEventListener("load", () =>
+          updateCameraStatus(true)
+        );
+      }
+
+      // Camera status management
+      function updateCameraStatus(isOnline) {
+        const dot = state.elements.cameraStatus.querySelector(".status-dot");
+        dot.style.color = isOnline ? "#2ecc71" : "#e74c3c";
+        state.elements.cameraStatus.querySelector("span").textContent = isOnline
+          ? "Streaming"
+          : "Offline";
+        state.elements.videoOverlay.classList.toggle("active", !isOnline);
+      }
+
+      function checkCameraStatus() {
+        setTimeout(() => {
+          const isOnline =
+            state.elements.cameraFeed.complete &&
+            state.elements.cameraFeed.naturalWidth !== 0;
+          updateCameraStatus(isOnline);
+        }, 1000);
+      }
+
+      // Real-time data updates
+      function setupRealTimeUpdates() {
+        const eventSource = new EventSource("/sensor_stream");
+
+        eventSource.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          updateDashboard(data);
+          checkThresholds(data);
+        };
+
+        eventSource.onerror = () => {
+          console.error("SSE connection error - falling back to polling");
+          eventSource.close();
+          setupPollingFallback();
+        };
+      }
+
+      function updateDashboard(data) {
+        // Update sensor values with animation
+        animateValue("temperature", data.temperature.toFixed(2));
+        animateValue("humidity", data.humidity.toFixed(2));
+        animateValue("gas", data.gas);
+        animateValue("distance", data.distance.toFixed(2));
+
+        // Update boolean states
+        state.elements.motion.textContent = data.motion ? "Detected" : "None";
+        state.elements.weapon.textContent = data.weapon_detected
+          ? "Detected"
+          : "Safe";
+        state.elements.lastUpdate.textContent = data.last_update;
+
+        // Update status indicator
+        updateStatusIndicator(data.alert);
+
+        // Update weapon card style
+        updateWeaponCardStyle(data.weapon_detected);
+      }
+
+      function updateStatusIndicator(alertStatus) {
+        state.elements.status.className = `status-indicator ${alertStatus.toLowerCase()}`;
+        state.elements.statusIcon.className = `fas ${
+          alertStatus === "WARNING"
+            ? "fa-exclamation-triangle"
+            : "fa-check-circle"
+        }`;
+        state.elements.statusText.textContent = `${alertStatus} STATUS`;
+      }
+
+      function updateWeaponCardStyle(isDetected) {
+        const weaponCard = document.querySelector(".weapon-sensor");
+        if (isDetected) {
+          weaponCard.style.backgroundColor = "#fee2e2";
+          weaponCard.style.boxShadow = "0 0 0 2px #ef4444";
+        } else {
+          weaponCard.style.backgroundColor = "";
+          weaponCard.style.boxShadow = "";
+        }
+      }
+
+      // Threshold checking
+      function checkThresholds(data) {
+        const newAlerts = {};
+
+        // Check each threshold
+        if (data.temperature >= CONFIG.thresholds.temperature) {
+          newAlerts.temperature = createAlert(
+            "HIGH TEMPERATURE",
+            data.temperature + "°C",
+            "fire"
+          );
+        }
+        if (data.gas >= CONFIG.thresholds.gas) {
+          newAlerts.gas = createAlert("GAS LEAK", data.gas + "ppm", "gas");
+        }
+        if (data.distance <= CONFIG.thresholds.distance) {
+          newAlerts.distance = createAlert(
+            "OBJECT TOO CLOSE",
+            data.distance + "cm",
+            "someone"
+          );
+        }
+        if (data.motion && CONFIG.thresholds.motion) {
+          newAlerts.motion = createAlert(
+            "MOTION DETECTED",
+            "Movement detected",
+            "motion"
+          );
+        }
+        if (data.weapon_detected && CONFIG.thresholds.weapon) {
+          const weaponType = data.weapon_type || "handgun"; // Assuming you have weapon_type in your data
+          newAlerts.weapon = createAlert(
+            "WEAPON DETECTED",
+            weaponType + " detected",
+            weaponType
+          );
+        }
+
+        // Schedule alerts
+        scheduleAlerts(newAlerts);
+
+        // Clean up resolved alerts
+        cleanupAlerts(newAlerts);
+      }
+
+      function createAlert(title, message, type) {
+        return {
+          title,
+          message,
+          type,
+          element: state.elements[type] || null,
+        };
+      }
+
+      function scheduleAlerts(newAlerts) {
+        for (const [key, alert] of Object.entries(newAlerts)) {
+          if (!state.activeAlerts[key]) {
+            setTimeout(() => {
+              if (!state.activeAlerts[key]) {
+                triggerAlert(alert);
+                state.activeAlerts[key] = true;
+              }
+            }, CONFIG.alertDelay);
+          }
+        }
+      }
+
+      function cleanupAlerts(newAlerts) {
+        Object.keys(state.activeAlerts).forEach((key) => {
+          if (!newAlerts[key]) {
+            delete state.activeAlerts[key];
+          }
+        });
+      }
+
+      // Alert handling
+      function triggerAlert(alert) {
+        state.elements.alertTitle.textContent = alert.title;
+        state.elements.alertMessage.textContent = alert.message;
+
+        // Set icon and play sound
+        state.elements.alertIcon.innerHTML = `<i class="fas fa-exclamation-triangle"></i>`;
+        state.elements.alertIcon.style.color =
+          alert.type === "fire" || alert.type === "gas" ? "#e74c3c" : "#f39c12";
+
+        // Play appropriate sound
+        if (state.elements.audio[alert.type]) {
+          state.elements.audio[alert.type].currentTime = 0;
+          state.elements.audio[alert.type]
+            .play()
+            .catch((e) => console.log("Audio blocked:", e));
+        }
+
+        // Show modal
+        if (!state.isAlertModalOpen) {
+          state.elements.alertModal.classList.add("active");
+          state.isAlertModalOpen = true;
+        }
+      }
+
+      function closeAlertModal() {
+        state.elements.alertModal.classList.remove("active");
+        state.isAlertModalOpen = false;
+      }
+
+      // Smooth value animation
+      function animateValue(id, newValue, duration = 300) {
+        const element = document.getElementById(id);
+        const start = parseFloat(element.textContent) || 0;
+        const end = parseFloat(newValue);
+        const range = end - start;
+        const startTime = performance.now();
+
+        function updateValue(timestamp) {
+          const elapsed = timestamp - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const value = start + range * progress;
+          element.textContent = Number.isInteger(end)
+            ? Math.floor(value)
+            : value.toFixed(2);
+
+          if (progress < 1) {
+            requestAnimationFrame(updateValue);
+          }
+        }
+
+        requestAnimationFrame(updateValue);
+      }
+
+      async function captureImage() {
+        const response = await fetch("/capture", { method: "POST" });
+        const result = await response.json();
+        if (result.status === "success") {
+          // Optionally download the image
+          window.open(result.path, "_blank");
+        }
+      }
+
+      // Fallback polling
+      function setupPollingFallback() {
+        const fetchData = async () => {
+          try {
+            const response = await fetch("/sensor_data");
+            const data = await response.json();
+            updateDashboard(data);
+            checkThresholds(data);
+          } catch (error) {
+            console.error("Polling error:", error);
+          }
+        };
+
+        fetchData();
+        setInterval(fetchData, 5000);
+      }
+
+      // Initialize the application
+      window.onload = init;
+    </script>
+  </body>
+</html>
